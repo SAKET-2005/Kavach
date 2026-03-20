@@ -1,0 +1,644 @@
+import { useState, useRef, useEffect, useCallback } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { useNavigate } from 'react-router-dom';
+import useKavachStore from '../store/useKavachStore';
+import KavachScore from '../components/KavachScore';
+
+const TOTAL_STEPS = 5;
+
+const slideVariants = {
+  enter: (direction) => ({
+    x: direction > 0 ? 300 : -300,
+    opacity: 0,
+  }),
+  center: {
+    x: 0,
+    opacity: 1,
+  },
+  exit: (direction) => ({
+    x: direction < 0 ? 300 : -300,
+    opacity: 0,
+  }),
+};
+
+// ─── Step 1: Platform Selection ───
+function PlatformStep({ onboarding, setField }) {
+  const platforms = [
+    { id: 'zomato', name: 'Zomato', accent: '#E23744' },
+    { id: 'swiggy', name: 'Swiggy', accent: '#FC8019' },
+  ];
+
+  return (
+    <div style={{ textAlign: 'center' }}>
+      <h1 style={{ fontFamily: 'var(--font-display)', fontSize: '36px', fontWeight: 700, marginBottom: '12px' }}>
+        Which platform do you deliver for?
+      </h1>
+      <p className="text-muted" style={{ marginBottom: '40px', fontSize: '16px' }}>
+        We'll calibrate your coverage based on how you work.
+      </p>
+
+      <div style={{ display: 'flex', gap: '20px', justifyContent: 'center', flexWrap: 'wrap' }}>
+        {platforms.map((p) => (
+          <div
+            key={p.id}
+            className={`selection-card ${onboarding.platform === p.id ? 'selected' : ''}`}
+            onClick={() => setField('platform', p.id)}
+            style={{
+              width: '220px',
+              minHeight: '180px',
+              flexDirection: 'column',
+              justifyContent: 'center',
+              borderLeft: `4px solid ${p.accent}`,
+              borderRadius: '20px',
+              cursor: 'pointer',
+              transition: 'all 0.2s ease',
+            }}
+            onMouseEnter={(e) => { e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.boxShadow = '0 6px 20px rgba(0,0,0,0.1)'; }}
+            onMouseLeave={(e) => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = ''; }}
+          >
+            <div className="check-mark">✓</div>
+            <div
+              style={{
+                width: '56px',
+                height: '56px',
+                borderRadius: '50%',
+                background: `${p.accent}15`,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontSize: '24px',
+                fontWeight: 700,
+                color: p.accent,
+                marginBottom: '12px',
+              }}
+            >
+              {p.name[0]}
+            </div>
+            <span style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: '18px' }}>{p.name}</span>
+          </div>
+        ))}
+      </div>
+
+      <button
+        onClick={() => setField('platform', 'both')}
+        style={{
+          background: 'none',
+          border: 'none',
+          color: 'var(--green-primary)',
+          fontSize: '14px',
+          cursor: 'pointer',
+          marginTop: '20px',
+          fontWeight: 500,
+        }}
+      >
+        I deliver for both platforms
+      </button>
+    </div>
+  );
+}
+
+// ─── Step 2: Zone Selection ───
+function ZoneStep({ onboarding, setField }) {
+  const cities = ['Chennai', 'Mumbai', 'Delhi', 'Bengaluru', 'Hyderabad', 'Pune', 'Kolkata'];
+  const [showPinCode, setShowPinCode] = useState(!!onboarding.city);
+  const [zone, setZone] = useState(onboarding.zone);
+
+  const handleCityChange = (e) => {
+    setField('city', e.target.value);
+    if (e.target.value) {
+      setTimeout(() => setShowPinCode(true), 200);
+    }
+  };
+
+  const handlePinChange = (e) => {
+    const val = e.target.value.replace(/\D/g, '').slice(0, 6);
+    setField('pinCode', val);
+    if (val.length === 6) {
+      const isHighRisk = onboarding.city === 'Chennai' || onboarding.city === 'Mumbai';
+      const detected = {
+        area: 'Adyar',
+        zone: 'Zone 4',
+        type: isHighRisk ? 'Coastal' : 'Inland',
+        risk: isHighRisk ? 'High Risk' : 'Low Risk',
+      };
+      setZone(detected);
+      setField('zone', detected);
+    } else {
+      setZone(null);
+      setField('zone', null);
+    }
+  };
+
+  return (
+    <div style={{ textAlign: 'center' }}>
+      <h1 style={{ fontFamily: 'var(--font-display)', fontSize: '36px', fontWeight: 700, marginBottom: '12px' }}>
+        Which area do you mostly deliver in?
+      </h1>
+      <p className="text-muted" style={{ marginBottom: '40px', fontSize: '16px' }}>
+        Your zone helps us assess local weather risks accurately.
+      </p>
+
+      <div style={{ maxWidth: '400px', margin: '0 auto' }}>
+        <div style={{ position: 'relative', marginBottom: '16px' }}>
+          <select
+            className="input input-lg"
+            value={onboarding.city}
+            onChange={handleCityChange}
+            style={{
+              appearance: 'none',
+              WebkitAppearance: 'none',
+              background: 'var(--bg-subtle)',
+              cursor: 'pointer',
+              paddingRight: '44px',
+            }}
+          >
+            <option value="">Select your city</option>
+            {cities.map((c) => (
+              <option key={c} value={c}>{c}</option>
+            ))}
+          </select>
+          <span
+            style={{
+              position: 'absolute',
+              right: '16px',
+              top: '50%',
+              transform: 'translateY(-50%)',
+              pointerEvents: 'none',
+              color: 'var(--text-muted)',
+              fontSize: '12px',
+            }}
+          >
+            ▼
+          </span>
+        </div>
+
+        <AnimatePresence>
+          {showPinCode && (
+            <motion.div
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: 'auto' }}
+              exit={{ opacity: 0, height: 0 }}
+              transition={{ duration: 0.3 }}
+            >
+              <input
+                type="text"
+                className="input input-lg"
+                placeholder="Enter your pin code"
+                value={onboarding.pinCode}
+                onChange={handlePinChange}
+                maxLength={6}
+                style={{ marginBottom: '16px' }}
+              />
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        <AnimatePresence>
+          {zone && (
+            <motion.div
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: 10 }}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '8px',
+                padding: '12px 20px',
+                borderRadius: '12px',
+                background: zone.risk === 'High Risk' ? 'var(--orange-light)' : 'var(--green-light)',
+                fontSize: '14px',
+                fontWeight: 500,
+              }}
+            >
+              📍 {zone.area} · {zone.zone} · {zone.type} · {zone.risk === 'High Risk' ? '⚠️' : '✅'} {zone.risk}
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
+    </div>
+  );
+}
+
+// ─── Step 3: Earnings ───
+function EarningsStep({ onboarding, setField }) {
+  const brackets = [
+    { id: 'basic', range: '₹2,000 – ₹3,000 / week', rec: 'Basic Shield recommended' },
+    { id: 'standard', range: '₹3,000 – ₹5,000 / week', rec: 'Standard Shield recommended' },
+    { id: 'pro', range: '₹5,000+ / week', rec: 'Pro Shield recommended' },
+  ];
+
+  return (
+    <div style={{ textAlign: 'center' }}>
+      <h1 style={{ fontFamily: 'var(--font-display)', fontSize: '36px', fontWeight: 700, marginBottom: '12px' }}>
+        Roughly how much do you earn in a week?
+      </h1>
+      <p className="text-muted" style={{ marginBottom: '40px', fontSize: '16px' }}>
+        This helps us recommend the right coverage level for you.
+      </p>
+
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', maxWidth: '480px', margin: '0 auto' }}>
+        {brackets.map((b) => (
+          <div
+            key={b.id}
+            className={`selection-card ${onboarding.earningsBracket === b.id ? 'selected' : ''}`}
+            onClick={() => setField('earningsBracket', b.id)}
+            style={{ height: '80px', cursor: 'pointer' }}
+          >
+            <div className="check-mark">✓</div>
+            <div style={{ flex: 1 }}>
+              <p className="rupee" style={{ fontWeight: 600, fontSize: '16px', marginBottom: '2px' }}>
+                {b.range}
+              </p>
+              <p className="text-muted text-sm">{b.rec}</p>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ─── Step 4: Phone + OTP ───
+function PhoneStep({ onboarding, setField, setOtpDigit, onComplete }) {
+  const [showOtp, setShowOtp] = useState(false);
+  const [countdown, setCountdown] = useState(30);
+  const otpRefs = useRef([]);
+
+  useEffect(() => {
+    if (!showOtp) return;
+    const timer = setInterval(() => {
+      setCountdown((c) => {
+        if (c <= 1) { clearInterval(timer); return 0; }
+        return c - 1;
+      });
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [showOtp]);
+
+  const handlePhoneSubmit = () => {
+    if (onboarding.phone.length === 10) {
+      setShowOtp(true);
+      setCountdown(30);
+    }
+  };
+
+  const handleOtpChange = useCallback((index, value) => {
+    if (!/^\d?$/.test(value)) return;
+    setOtpDigit(index, value);
+
+    if (value && index < 5) {
+      otpRefs.current[index + 1]?.focus();
+    }
+
+    // Check if all filled
+    setTimeout(() => {
+      const otp = useKavachStore.getState().onboarding.otp;
+      if (otp.every((d) => d !== '')) {
+        onComplete();
+      }
+    }, 100);
+  }, [setOtpDigit, onComplete]);
+
+  const handleOtpKeyDown = (index, e) => {
+    if (e.key === 'Backspace' && !onboarding.otp[index] && index > 0) {
+      otpRefs.current[index - 1]?.focus();
+    }
+  };
+
+  if (showOtp) {
+    return (
+      <div style={{ textAlign: 'center' }}>
+        <h1 style={{ fontFamily: 'var(--font-display)', fontSize: '36px', fontWeight: 700, marginBottom: '12px' }}>
+          Enter the code we sent you
+        </h1>
+        <p className="text-muted" style={{ marginBottom: '40px', fontSize: '16px' }}>
+          We sent a 6-digit code to +91 {onboarding.phone}
+        </p>
+
+        <div style={{ display: 'flex', gap: '12px', justifyContent: 'center', marginBottom: '24px' }}>
+          {onboarding.otp.map((digit, i) => (
+            <input
+              key={i}
+              ref={(el) => (otpRefs.current[i] = el)}
+              type="text"
+              inputMode="numeric"
+              className="otp-input"
+              value={digit}
+              onChange={(e) => handleOtpChange(i, e.target.value)}
+              onKeyDown={(e) => handleOtpKeyDown(i, e)}
+              maxLength={1}
+              autoFocus={i === 0}
+            />
+          ))}
+        </div>
+
+        <p className="text-muted">
+          {countdown > 0 ? (
+            `Resend in 0:${countdown.toString().padStart(2, '0')}`
+          ) : (
+            <button
+              onClick={() => setCountdown(30)}
+              style={{ background: 'none', border: 'none', color: 'var(--green-primary)', cursor: 'pointer', fontWeight: 500, fontSize: '14px' }}
+            >
+              Resend code
+            </button>
+          )}
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ textAlign: 'center' }}>
+      <h1 style={{ fontFamily: 'var(--font-display)', fontSize: '36px', fontWeight: 700, marginBottom: '12px' }}>
+        What's your phone number?
+      </h1>
+      <p className="text-muted" style={{ marginBottom: '40px', fontSize: '16px' }}>
+        We'll verify your number with a quick OTP.
+      </p>
+
+      <div style={{ maxWidth: '400px', margin: '0 auto', display: 'flex', gap: '8px' }}>
+        <div
+          style={{
+            height: '48px',
+            padding: '0 16px',
+            background: 'var(--bg-subtle)',
+            borderRadius: 'var(--radius-input)',
+            display: 'flex',
+            alignItems: 'center',
+            fontSize: '16px',
+            fontWeight: 600,
+            color: 'var(--text-muted)',
+            flexShrink: 0,
+          }}
+        >
+          +91
+        </div>
+        <input
+          type="tel"
+          className="input input-lg"
+          placeholder="10-digit mobile number"
+          value={onboarding.phone}
+          onChange={(e) => setField('phone', e.target.value.replace(/\D/g, '').slice(0, 10))}
+          style={{ flex: 1 }}
+        />
+      </div>
+
+      <button
+        className="btn btn-primary btn-full"
+        disabled={onboarding.phone.length !== 10}
+        onClick={handlePhoneSubmit}
+        style={{ maxWidth: '400px', marginTop: '24px' }}
+      >
+        Send OTP →
+      </button>
+    </div>
+  );
+}
+
+// ─── Step 5: Risk Profile Result ───
+function ResultStep({ onboarding }) {
+  const navigate = useNavigate();
+  const score = onboarding.kavachScore || 67;
+  const policy = onboarding.recommendedPolicy || { tier: 'Standard Shield', premium: 65, coverage: 3000 };
+
+  const getRiskLabel = (s) => {
+    if (s < 40) return 'Low risk — inland zone, clear season';
+    if (s <= 70) return 'Moderate risk — coastal zone, monsoon season active';
+    return 'High risk — coastal zone, active weather alerts';
+  };
+
+  return (
+    <div style={{ textAlign: 'center' }}>
+      <motion.div
+        initial={{ scale: 0.8, opacity: 0 }}
+        animate={{ scale: 1, opacity: 1 }}
+        transition={{ duration: 0.6, ease: 'easeOut' }}
+      >
+        <KavachScore score={score} size={200} strokeWidth={12} />
+      </motion.div>
+
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 1.0, duration: 0.5 }}
+      >
+        <h2
+          style={{
+            fontFamily: 'var(--font-display)',
+            fontSize: '24px',
+            marginTop: '20px',
+            marginBottom: '8px',
+          }}
+        >
+          Your Kavach Score: <span className="rupee">{score}</span>
+        </h2>
+        <p className="text-muted" style={{ marginBottom: '32px' }}>
+          {getRiskLabel(score)}
+        </p>
+
+        {/* Recommended Policy Card */}
+        <div
+          style={{
+            background: 'var(--bg-card)',
+            borderLeft: '4px solid var(--green-primary)',
+            borderRadius: '20px',
+            padding: '28px',
+            maxWidth: '400px',
+            margin: '0 auto',
+            textAlign: 'left',
+            boxShadow: 'var(--shadow-card)',
+          }}
+        >
+          <h3
+            style={{
+              fontFamily: 'var(--font-display)',
+              fontSize: '20px',
+              fontWeight: 700,
+              color: 'var(--text-primary)',
+              marginBottom: '16px',
+            }}
+          >
+            {policy.tier}
+          </h3>
+          <p className="rupee" style={{ fontSize: '28px', fontWeight: 700, color: 'var(--green-primary)', marginBottom: '4px' }}>
+            ₹{policy.premium}
+            <span style={{ fontSize: '14px', fontWeight: 400, color: 'var(--text-muted)', marginLeft: '8px' }}>
+              / this week
+            </span>
+          </p>
+          <p style={{ color: 'var(--text-secondary)', fontSize: '14px', marginBottom: '24px' }}>
+            Coverage up to ₹{policy.coverage.toLocaleString('en-IN')}
+          </p>
+
+          <button
+            className="btn btn-primary btn-full"
+            onClick={() => navigate('/dashboard')}
+            style={{
+              fontSize: '16px',
+              padding: '14px',
+            }}
+          >
+            Activate My Shield →
+          </button>
+        </div>
+
+        <p className="text-muted" style={{ marginTop: '16px', fontSize: '13px' }}>
+          Renews every Sunday. Cancel anytime.
+        </p>
+      </motion.div>
+    </div>
+  );
+}
+
+// ─── Main Onboarding Page ───
+export default function Onboarding() {
+  const { onboarding, setOnboardingField, nextStep, prevStep, setOtpDigit, completeOnboarding } =
+    useKavachStore();
+  const [direction, setDirection] = useState(1);
+
+  const canContinue = () => {
+    switch (onboarding.step) {
+      case 1: return !!onboarding.platform;
+      case 2: return !!onboarding.city && !!onboarding.zone;
+      case 3: return !!onboarding.earningsBracket;
+      case 4: return false; // Handled by OTP auto-submit
+      case 5: return false;
+      default: return false;
+    }
+  };
+
+  const handleNext = () => {
+    if (onboarding.step < TOTAL_STEPS) {
+      setDirection(1);
+      nextStep();
+    }
+  };
+
+  const handleBack = () => {
+    if (onboarding.step > 1) {
+      setDirection(-1);
+      prevStep();
+    }
+  };
+
+  const handleOtpComplete = () => {
+    setDirection(1);
+    completeOnboarding();
+    nextStep();
+  };
+
+  const renderStep = () => {
+    switch (onboarding.step) {
+      case 1: return <PlatformStep onboarding={onboarding} setField={setOnboardingField} />;
+      case 2: return <ZoneStep onboarding={onboarding} setField={setOnboardingField} />;
+      case 3: return <EarningsStep onboarding={onboarding} setField={setOnboardingField} />;
+      case 4: return <PhoneStep onboarding={onboarding} setField={setOnboardingField} setOtpDigit={setOtpDigit} onComplete={handleOtpComplete} />;
+      case 5: return <ResultStep onboarding={onboarding} />;
+      default: return null;
+    }
+  };
+
+  return (
+    <div
+      style={{
+        minHeight: '100vh',
+        display: 'flex',
+        flexDirection: 'column',
+        background: 'var(--bg-base)',
+      }}
+    >
+      {/* Progress bar */}
+      <div className="progress-bar" style={{ width: `${(onboarding.step / TOTAL_STEPS) * 100}%` }} />
+
+      {/* Header — fixed at top */}
+      <div style={{
+        position: 'fixed',
+        top: 3,
+        left: 0,
+        right: 0,
+        zIndex: 50,
+        padding: '18px 24px',
+        background: 'var(--bg-base)',
+      }}>
+        <div style={{ maxWidth: 'var(--max-width)', margin: '0 auto', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          {onboarding.step > 1 ? (
+            <button
+              onClick={handleBack}
+              style={{
+                background: 'none',
+                border: 'none',
+                color: 'var(--text-muted)',
+                cursor: 'pointer',
+                fontSize: '14px',
+                fontWeight: 500,
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+              }}
+            >
+              ← Back
+            </button>
+          ) : (
+            <div />
+          )}
+
+          <span
+            style={{
+              fontFamily: 'var(--font-display)',
+              fontSize: '20px',
+              fontWeight: 700,
+              color: 'var(--text-primary)',
+            }}
+          >
+            Kavach
+          </span>
+
+          <span className="text-muted text-sm">
+            {onboarding.step} of {TOTAL_STEPS}
+          </span>
+        </div>
+      </div>
+
+      {/* Step content */}
+      <div
+        style={{
+          flex: 1,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          padding: '40px 24px',
+          overflow: 'hidden',
+        }}
+      >
+        <AnimatePresence mode="wait" custom={direction}>
+          <motion.div
+            key={onboarding.step}
+            custom={direction}
+            variants={slideVariants}
+            initial="enter"
+            animate="center"
+            exit="exit"
+            transition={{ duration: 0.3, ease: 'easeInOut' }}
+            style={{ width: '100%', maxWidth: '600px' }}
+          >
+            {renderStep()}
+          </motion.div>
+        </AnimatePresence>
+      </div>
+
+      {/* Bottom CTA */}
+      {onboarding.step < 4 && (
+        <div style={{ padding: '0 24px 32px', maxWidth: '600px', margin: '0 auto', width: '100%' }}>
+          <button
+            className="btn btn-primary btn-full"
+            disabled={!canContinue()}
+            onClick={handleNext}
+          >
+            Continue →
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
