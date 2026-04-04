@@ -24,7 +24,7 @@ export default function Dashboard() {
     setIsGettingPremium(true);
     try {
       const month = new Date().getMonth() + 1;
-      const res = await fetch(`${import.meta.env.VITE_ML_SERVICE_URL || 'http://localhost:8000'}/predict-premium`, {
+      const res = await fetch(`${import.meta.env.VITE_ML_BASE_URL || 'http://localhost:8000'}/predict-premium`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

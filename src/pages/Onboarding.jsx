@@ -631,7 +631,7 @@ function ResultStep({ onboarding }) {
           {mlError || 'Could not calculate your score'}
         </h2>
         <p className="text-muted" style={{ fontSize: '14px', marginBottom: '24px' }}>
-          Make sure the ML service is running at localhost:8000
+          Could not reach the ML service — please try again later
         </p>
         <button
           className="btn btn-primary"
