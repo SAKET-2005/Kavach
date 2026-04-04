@@ -327,15 +327,178 @@ curl -X POST http://localhost:5000/dev/simulate \
 
 ---
 
-## Team
+## Phase 2 — Automation & Protection
 
-Built for Guidewire DEVTrails 2026.
+> Theme: *"Protect Your Worker"* | March 21 – April 4
+
+Phase 2 moved Kavach from a planned architecture into a working, end-to-end automated system. Every component described in Phase 1 now runs live — real weather APIs, real ML models, real fraud scoring, real payout simulation.
+
+---
+
+### What shipped in Phase 2
+
+**1. ML Microservice (Python FastAPI)**
+
+A standalone Python service (`/ml_service`) replaces the Phase 1 rule-based premium stubs. It trains on startup using 5,000 synthetic Indian gig-worker records and serves six live endpoints:
+
+```
+POST /predict-premium   → dynamic weekly premium (live weather + trained model)
+POST /fraud-score       → fraud score 0–100 with decision + signal breakdown
+POST /kavach-score      → onboarding risk score using live conditions
+GET  /conditions/{city} → current weather + AQI + active trigger status
+POST /dev/simulate      → trigger a disruption for demo/testing
+GET  /lookup-pincode/{n}→ India Post API lookup → area, district, zone, risk class
+```
+
+ML stack: `scikit-learn` GradientBoostingRegressor (premium) + RandomForestClassifier (fraud). Both models train in ~2–3 seconds on startup and fall back to a deterministic rule-based engine if training fails.
+
+**2. Live Weather & AQI Integration**
+
+OpenWeatherMap and AQICN are no longer mocked. `weather_service.py` and `aqi_service.py` poll real APIs with a 10-minute in-memory cache to respect free-tier rate limits. Premium calculations, fraud scoring, and the worker dashboard all receive live rainfall, temperature, humidity, and AQI data.
+
+**3. Dynamic Premium — Live Pricing**
+
+The `/predict-premium` endpoint incorporates:
+
+- Live weather conditions at query time (rainfall, temp, humidity)
+- Live AQI for the city
+- Monthly season factor (June–August peaks at 1.20× for monsoon)
+- City baseline risk (Chennai 0.90, Mumbai 0.85 … Bengaluru 0.45)
+- Worker tenure, claims history, platform, and declared weekly earnings
+
+Workers upgrading their tier in the dashboard see a live-fetched premium, not a static table number. The upgrade modal calls the ML service in real time before confirming.
+
+**4. Pincode-Based Zone Classification**
+
+Onboarding now calls the India Post API via `/lookup-pincode/{pincode}`. The worker's real area, district, and state are resolved automatically. The ML service classifies the location as Coastal / Inland, scores it against a curated list of coastal and flood-prone districts across 8 states, and surfaces a risk label (Low / Medium / High) that feeds into the premium and Kavach Score.
+
+Fallback: if India Post API is unavailable, the first digit of the pincode routes to the correct postal region so onboarding never breaks.
+
+**5. Firebase Phone OTP Auth**
+
+Worker authentication now uses Firebase Phone Auth with invisible reCAPTCHA. The `usePhoneAuth` hook handles the full OTP flow. A dev-mode fallback accepts any 6-digit code on localhost so the flow can be tested without a Firebase Phone Auth plan.
+
+**6. Worker Dashboard — Live Conditions**
+
+The worker dashboard now polls `/conditions/{city}` on load. The live weather widget shows:
+- Current rainfall (mm), temperature (°C), humidity (%)
+- AQI value and category
+- Active trigger alert if any threshold is currently crossed
+
+The Kavach Score updates from the ML service using real weather at onboarding, not a static number.
+
+**7. Claims Management — Zero-Touch Pipeline**
+
+The automated claim pipeline is fully wired:
+
+```
+Threshold crossed (node-cron, every 15 min)
+      ↓
+/fraud-score called for each active policy in affected zone
+      ↓
+Score < 30  → AUTO_APPROVE → payout queued
+Score 30–70 → REVIEW       → WhatsApp verification request
+Score > 70  → AUTO_REJECT  → reason logged, worker notified
+```
+
+Fraud scoring now cross-checks the claimed trigger type against live weather at score time — a rainfall claim during current clear skies receives an automatic penalty regardless of other signals.
+
+**8. Policy Management Page**
+
+A dedicated `/policy` page shows workers their active coverage, what is and isn't covered, the full trigger list with thresholds, and the claims audit trail. Workers can upgrade their tier directly from this page with a live premium quote.
+
+---
+
+### Phase 2 stack additions
+
+| Addition | Detail |
+|----------|--------|
+| Python FastAPI | ML microservice, replaces all mock ML endpoints |
+| scikit-learn | GradientBoostingRegressor + RandomForestClassifier |
+| Firebase Auth | Phone OTP with invisible reCAPTCHA |
+| India Post API | Pincode → district → zone → risk classification |
+| OpenWeatherMap (live) | Real rainfall, temp, humidity — 10-min cache |
+| AQICN (live) | Real AQI — 10-min cache |
+| react-hook-form | Onboarding form validation |
+| React 19 | Upgraded from React 18 |
+
+---
+
+### Running Phase 2 locally
+
+**Frontend**
+
+```bash
+cd client && npm install && npm run dev
+```
+
+**ML Microservice**
+
+```bash
+cd ml_service
+pip install -r requirements.txt
+cp .env.example .env   # add OPENWEATHER_API_KEY and AQICN_TOKEN
+uvicorn main:app --reload --port 8000
+```
+
+Required env keys for the ML service:
+
+```
+OPENWEATHER_API_KEY=...
+AQICN_TOKEN=...
+SUPABASE_URL=...       # optional — for claim velocity checks
+SUPABASE_KEY=...       # optional
+```
+
+If Supabase keys are absent, the fraud engine skips the claim velocity check and uses live weather signals only.
+
+**Simulate a disruption**
+
+```bash
+curl -X POST http://localhost:8000/dev/simulate \
+  -H "Content-Type: application/json" \
+  -d '{"city": "chennai", "trigger": "RAINFALL", "value": 78}'
+```
+
+Returns the fraud decision, signals, and simulated payout amount.
+
+---
+
+### Phase 2 deliverable checklist
+
+| Requirement | Status |
+|-------------|--------|
+| Registration process with phone OTP | ✅ Firebase Auth |
+| Insurance policy management | ✅ PolicyPage + tier upgrade flow |
+| Dynamic premium calculation | ✅ FastAPI + GBR + live weather |
+| Claims management (zero-touch) | ✅ Fraud engine + auto decision |
+| 3–5 automated triggers via APIs | ✅ Rainfall, Heat, AQI (live); Flood, Curfew (mock feed) |
+| AI/ML integration | ✅ GradientBoostingRegressor + RandomForestClassifier |
+| 2-minute demo video | ✅ Uploaded |
+
+---
+
+### What Phase 3 will add
+
+- Advanced fraud detection: GPS spoofing detection, syndicate graph flagging
+- Razorpay full integration: instant UPI payout on auto-approve
+- Supabase Realtime: live dashboard updates without polling
+- Twilio WhatsApp sandbox: missed-protection alerts + AMBER verification
+- 5-minute final demo video + pitch deck PDF
+
+
+
+---
+
+## Team
 
 | Name | Role |
 |------|------|
-| [Vansh Gajiwala] | Frontend |
-| [Pranav Pooviah] | Backend + APIs |
-| [Nehal Kashyap] | AI / ML |
+| [Nehal Kashyap] | Frontend |
+| [Vansh Gajiwala] | Backend + APIs |
+| [Pranav Pooviah] | AI / ML |
 | [Saket Bedia] | AI / ML |
 
 *Kavach (कवच) — Sanskrit for shield or armour.*
+
+- Built for Guidewire DEVTrails 2026.
