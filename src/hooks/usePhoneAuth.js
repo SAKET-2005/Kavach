@@ -10,7 +10,7 @@ import { auth } from '../firebase';
  * This lets you test the full flow without Firebase Phone Auth enabled.
  */
 
-const IS_DEV = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+const IS_DEV = import.meta.env.DEV || window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
 
 export default function usePhoneAuth() {
     const [loading, setLoading] = useState(false);
@@ -48,6 +48,13 @@ export default function usePhoneAuth() {
         setDevMode(false);
 
         try {
+            if (IS_DEV) {
+                console.info('[PhoneAuth] Dev mode detected — enabling demo OTP fallback');
+                setDevMode(true);
+                setLoading(false);
+                return true;
+            }
+
             const formattedPhone = phoneNumber.startsWith('+')
                 ? phoneNumber
                 : `+91${phoneNumber.replace(/\D/g, '')}`;
