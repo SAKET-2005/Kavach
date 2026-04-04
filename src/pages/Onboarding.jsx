@@ -3,6 +3,8 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import useKavachStore from '../store/useKavachStore';
 import KavachScore from '../components/KavachScore';
+import usePhoneAuth from '../hooks/usePhoneAuth';
+import { lookupPincode } from '../services/api';
 
 const TOTAL_STEPS = 5;
 
@@ -97,11 +99,13 @@ function PlatformStep({ onboarding, setField }) {
   );
 }
 
-// ─── Step 2: Zone Selection ───
+// ─── Step 2: Zone Selection (NOW WITH REAL PINCODE API) ───
 function ZoneStep({ onboarding, setField }) {
   const cities = ['Chennai', 'Mumbai', 'Delhi', 'Bengaluru', 'Hyderabad', 'Pune', 'Kolkata'];
   const [showPinCode, setShowPinCode] = useState(!!onboarding.city);
   const [zone, setZone] = useState(onboarding.zone);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
 
   const handleCityChange = (e) => {
     setField('city', e.target.value);
@@ -110,19 +114,38 @@ function ZoneStep({ onboarding, setField }) {
     }
   };
 
-  const handlePinChange = (e) => {
+  const handlePinChange = async (e) => {
     const val = e.target.value.replace(/\D/g, '').slice(0, 6);
     setField('pinCode', val);
+    setError(null);
+
     if (val.length === 6) {
-      const isHighRisk = onboarding.city === 'Chennai' || onboarding.city === 'Mumbai';
-      const detected = {
-        area: 'Adyar',
-        zone: 'Zone 4',
-        type: isHighRisk ? 'Coastal' : 'Inland',
-        risk: isHighRisk ? 'High Risk' : 'Low Risk',
-      };
-      setZone(detected);
-      setField('zone', detected);
+      setLoading(true);
+      try {
+        // Call the REAL pincode API via ML backend
+        const result = await lookupPincode(val);
+        const detected = {
+          area: result.area,
+          district: result.district,
+          state: result.state,
+          zone: result.zone,
+          type: result.type,
+          risk: result.risk,
+          riskScore: result.risk_score,
+          isCoastal: result.is_coastal,
+          isFloodProne: result.is_flood_prone,
+          allAreas: result.all_areas || [],
+        };
+        setZone(detected);
+        setField('zone', detected);
+      } catch (err) {
+        console.error('[Zone] Pincode lookup failed:', err);
+        setError('Could not look up pincode — check ML service is running');
+        setZone(null);
+        setField('zone', null);
+      } finally {
+        setLoading(false);
+      }
     } else {
       setZone(null);
       setField('zone', null);
@@ -193,24 +216,136 @@ function ZoneStep({ onboarding, setField }) {
           )}
         </AnimatePresence>
 
+        {/* Loading indicator */}
         <AnimatePresence>
-          {zone && (
+          {loading && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '8px',
+                padding: '12px 20px',
+                fontSize: '14px',
+                color: 'var(--text-muted)',
+              }}
+            >
+              <span style={{
+                width: '16px', height: '16px',
+                border: '2px solid var(--border)',
+                borderTop: '2px solid var(--green-primary)',
+                borderRadius: '50%',
+                animation: 'spin 0.8s linear infinite',
+              }} />
+              Looking up pincode...
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* Error message */}
+        {error && (
+          <p style={{ color: 'var(--red)', fontSize: '13px', marginBottom: '12px' }}>
+            {error}
+          </p>
+        )}
+
+        {/* Zone result */}
+        <AnimatePresence>
+          {zone && !loading && (
             <motion.div
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: 10 }}
               style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '8px',
-                padding: '12px 20px',
-                borderRadius: '12px',
-                background: zone.risk === 'High Risk' ? 'var(--orange-light)' : 'var(--green-light)',
-                fontSize: '14px',
-                fontWeight: 500,
+                padding: '16px 20px',
+                borderRadius: '16px',
+                background: zone.risk === 'High Risk' ? 'var(--orange-light)'
+                  : zone.risk === 'Medium Risk' ? '#fff8e1'
+                  : 'var(--green-light)',
+                textAlign: 'left',
               }}
             >
-              📍 {zone.area} · {zone.zone} · {zone.type} · {zone.risk === 'High Risk' ? '⚠️' : '✅'} {zone.risk}
+              <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                marginBottom: '8px',
+                fontSize: '15px',
+                fontWeight: 600,
+              }}>
+                📍 {zone.area}
+                {zone.district !== zone.area && (
+                  <span style={{ fontWeight: 400, color: 'var(--text-muted)' }}>
+                    · {zone.district}
+                  </span>
+                )}
+              </div>
+              <div style={{
+                display: 'flex',
+                flexWrap: 'wrap',
+                gap: '8px',
+                fontSize: '12px',
+              }}>
+                <span style={{
+                  padding: '3px 10px',
+                  borderRadius: '20px',
+                  background: 'rgba(0,0,0,0.06)',
+                  fontWeight: 500,
+                }}>
+                  {zone.zone}
+                </span>
+                <span style={{
+                  padding: '3px 10px',
+                  borderRadius: '20px',
+                  background: 'rgba(0,0,0,0.06)',
+                  fontWeight: 500,
+                }}>
+                  {zone.type}
+                </span>
+                <span style={{
+                  padding: '3px 10px',
+                  borderRadius: '20px',
+                  background: zone.risk === 'High Risk' ? '#fff3e0'
+                    : zone.risk === 'Medium Risk' ? '#fff8e1'
+                    : '#e8f5e9',
+                  fontWeight: 600,
+                  color: zone.risk === 'High Risk' ? '#e65100'
+                    : zone.risk === 'Medium Risk' ? '#f57f17'
+                    : '#2e7d32',
+                }}>
+                  {zone.risk === 'High Risk' ? '⚠️' : zone.risk === 'Medium Risk' ? '🔶' : '✅'} {zone.risk}
+                </span>
+                {zone.isCoastal && (
+                  <span style={{
+                    padding: '3px 10px',
+                    borderRadius: '20px',
+                    background: '#e3f2fd',
+                    fontWeight: 500,
+                    color: '#1565c0',
+                  }}>
+                    🌊 Coastal
+                  </span>
+                )}
+                {zone.isFloodProne && (
+                  <span style={{
+                    padding: '3px 10px',
+                    borderRadius: '20px',
+                    background: '#fce4ec',
+                    fontWeight: 500,
+                    color: '#c62828',
+                  }}>
+                    🌧️ Flood-prone
+                  </span>
+                )}
+              </div>
+              {zone.state && (
+                <p style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '8px' }}>
+                  {zone.state}
+                </p>
+              )}
             </motion.div>
           )}
         </AnimatePresence>
@@ -258,11 +393,12 @@ function EarningsStep({ onboarding, setField }) {
   );
 }
 
-// ─── Step 4: Phone + OTP ───
+// ─── Step 4: Phone + OTP (Firebase Auth) ───
 function PhoneStep({ onboarding, setField, setOtpDigit, onComplete }) {
   const [showOtp, setShowOtp] = useState(false);
   const [countdown, setCountdown] = useState(30);
   const otpRefs = useRef([]);
+  const { sendOtp, verifyOtp, loading, error: authError, devMode } = usePhoneAuth();
 
   useEffect(() => {
     if (!showOtp) return;
@@ -275,9 +411,19 @@ function PhoneStep({ onboarding, setField, setOtpDigit, onComplete }) {
     return () => clearInterval(timer);
   }, [showOtp]);
 
-  const handlePhoneSubmit = () => {
+  const handlePhoneSubmit = async () => {
     if (onboarding.phone.length === 10) {
-      setShowOtp(true);
+      const success = await sendOtp(onboarding.phone);
+      if (success) {
+        setShowOtp(true);
+        setCountdown(30);
+      }
+    }
+  };
+
+  const handleResendOtp = async () => {
+    const success = await sendOtp(onboarding.phone);
+    if (success) {
       setCountdown(30);
     }
   };
@@ -290,14 +436,20 @@ function PhoneStep({ onboarding, setField, setOtpDigit, onComplete }) {
       otpRefs.current[index + 1]?.focus();
     }
 
-    // Check if all filled
-    setTimeout(() => {
+    // Check if all filled — verify with Firebase
+    setTimeout(async () => {
       const otp = useKavachStore.getState().onboarding.otp;
-      if (otp.every((d) => d !== '')) {
-        onComplete();
+      const updatedOtp = [...otp];
+      updatedOtp[index] = value;
+      if (updatedOtp.every((d) => d !== '')) {
+        const code = updatedOtp.join('');
+        const user = await verifyOtp(code);
+        if (user) {
+          onComplete();
+        }
       }
     }, 100);
-  }, [setOtpDigit, onComplete]);
+  }, [setOtpDigit, onComplete, verifyOtp]);
 
   const handleOtpKeyDown = (index, e) => {
     if (e.key === 'Backspace' && !onboarding.otp[index] && index > 0) {
@@ -312,7 +464,9 @@ function PhoneStep({ onboarding, setField, setOtpDigit, onComplete }) {
           Enter the code we sent you
         </h1>
         <p className="text-muted" style={{ marginBottom: '40px', fontSize: '16px' }}>
-          We sent a 6-digit code to +91 {onboarding.phone}
+          {devMode
+            ? '🧪 Dev mode — enter any 6-digit code to continue'
+            : `We sent a 6-digit code to +91 ${onboarding.phone}`}
         </p>
 
         <div style={{ display: 'flex', gap: '12px', justifyContent: 'center', marginBottom: '24px' }}>
@@ -332,12 +486,25 @@ function PhoneStep({ onboarding, setField, setOtpDigit, onComplete }) {
           ))}
         </div>
 
+        {authError && (
+          <p style={{ color: 'var(--red)', fontSize: '14px', marginBottom: '12px' }}>
+            {authError}
+          </p>
+        )}
+
+        {loading && (
+          <p style={{ color: 'var(--green-primary)', fontSize: '14px', marginBottom: '12px' }}>
+            Verifying...
+          </p>
+        )}
+
         <p className="text-muted">
           {countdown > 0 ? (
             `Resend in 0:${countdown.toString().padStart(2, '0')}`
           ) : (
             <button
-              onClick={() => setCountdown(30)}
+              onClick={handleResendOtp}
+              disabled={loading}
               style={{ background: 'none', border: 'none', color: 'var(--green-primary)', cursor: 'pointer', fontWeight: 500, fontSize: '14px' }}
             >
               Resend code
@@ -384,29 +551,98 @@ function PhoneStep({ onboarding, setField, setOtpDigit, onComplete }) {
         />
       </div>
 
+      {authError && (
+        <p style={{ color: 'var(--red)', fontSize: '14px', marginTop: '12px' }}>
+          {authError}
+        </p>
+      )}
+
       <button
         className="btn btn-primary btn-full"
-        disabled={onboarding.phone.length !== 10}
+        disabled={onboarding.phone.length !== 10 || loading}
         onClick={handlePhoneSubmit}
         style={{ maxWidth: '400px', marginTop: '24px' }}
       >
-        Send OTP →
+        {loading ? 'Sending...' : 'Send OTP →'}
       </button>
+
+      {/* Invisible reCAPTCHA container */}
+      <div id="recaptcha-container" />
     </div>
   );
 }
 
-// ─── Step 5: Risk Profile Result ───
+// ─── Step 5: Risk Profile Result (NOW WITH LIVE ML DATA) ───
 function ResultStep({ onboarding }) {
   const navigate = useNavigate();
-  const score = onboarding.kavachScore || 67;
-  const policy = onboarding.recommendedPolicy || { tier: 'Standard Shield', premium: 65, coverage: 3000 };
+  const score = onboarding.kavachScore;
+  const policy = onboarding.recommendedPolicy;
+  const isLoading = onboarding.mlLoading;
+  const mlError = onboarding.mlError;
 
   const getRiskLabel = (s) => {
     if (s < 40) return 'Low risk — inland zone, clear season';
-    if (s <= 70) return 'Moderate risk — coastal zone, monsoon season active';
+    if (s <= 70) return 'Moderate risk — seasonal weather patterns detected';
     return 'High risk — coastal zone, active weather alerts';
   };
+
+  // Loading state while ML backend processes
+  if (isLoading) {
+    return (
+      <div style={{ textAlign: 'center', padding: '60px 20px' }}>
+        <motion.div
+          animate={{ rotate: 360 }}
+          transition={{ duration: 1.5, repeat: Infinity, ease: 'linear' }}
+          style={{
+            width: '60px',
+            height: '60px',
+            border: '3px solid var(--border)',
+            borderTop: '3px solid var(--green-primary)',
+            borderRadius: '50%',
+            margin: '0 auto 24px',
+          }}
+        />
+        <h2 style={{
+          fontFamily: 'var(--font-display)',
+          fontSize: '22px',
+          fontWeight: 700,
+          marginBottom: '8px',
+        }}>
+          Analyzing your risk profile...
+        </h2>
+        <p className="text-muted" style={{ fontSize: '14px' }}>
+          Checking live weather, AQI, and city risk data
+        </p>
+      </div>
+    );
+  }
+
+  // Error state
+  if (mlError || !score || !policy) {
+    return (
+      <div style={{ textAlign: 'center', padding: '60px 20px' }}>
+        <div style={{ fontSize: '48px', marginBottom: '16px' }}>⚠️</div>
+        <h2 style={{
+          fontFamily: 'var(--font-display)',
+          fontSize: '22px',
+          fontWeight: 700,
+          marginBottom: '8px',
+        }}>
+          {mlError || 'Could not calculate your score'}
+        </h2>
+        <p className="text-muted" style={{ fontSize: '14px', marginBottom: '24px' }}>
+          Make sure the ML service is running at localhost:8000
+        </p>
+        <button
+          className="btn btn-primary"
+          onClick={() => useKavachStore.getState().completeOnboarding()}
+          style={{ padding: '12px 32px' }}
+        >
+          Retry →
+        </button>
+      </div>
+    );
+  }
 
   return (
     <div style={{ textAlign: 'center' }}>
@@ -433,9 +669,53 @@ function ResultStep({ onboarding }) {
         >
           Your Kavach Score: <span className="rupee">{score}</span>
         </h2>
-        <p className="text-muted" style={{ marginBottom: '32px' }}>
+        <p className="text-muted" style={{ marginBottom: '12px' }}>
           {getRiskLabel(score)}
         </p>
+
+        {/* Live data indicators */}
+        <div style={{
+          display: 'flex',
+          gap: '12px',
+          justifyContent: 'center',
+          marginBottom: '24px',
+          flexWrap: 'wrap',
+        }}>
+          {onboarding.weatherSummary && (
+            <span style={{
+              padding: '4px 12px',
+              borderRadius: '20px',
+              background: 'var(--bg-subtle)',
+              fontSize: '12px',
+              color: 'var(--text-secondary)',
+            }}>
+              🌤️ {onboarding.weatherSummary}
+            </span>
+          )}
+          {onboarding.aqiCategory && (
+            <span style={{
+              padding: '4px 12px',
+              borderRadius: '20px',
+              background: 'var(--bg-subtle)',
+              fontSize: '12px',
+              color: 'var(--text-secondary)',
+            }}>
+              🏭 AQI: {onboarding.aqiCategory}
+            </span>
+          )}
+          {onboarding.modelVersion && (
+            <span style={{
+              padding: '4px 12px',
+              borderRadius: '20px',
+              background: onboarding.modelVersion === 'ml' ? '#e8f5e9' : 'var(--bg-subtle)',
+              fontSize: '12px',
+              color: onboarding.modelVersion === 'ml' ? '#2e7d32' : 'var(--text-secondary)',
+              fontWeight: onboarding.modelVersion === 'ml' ? 600 : 400,
+            }}>
+              🤖 {onboarding.modelVersion === 'ml' ? 'ML Model' : 'Rule-based'}
+            </span>
+          )}
+        </div>
 
         {/* Recommended Policy Card */}
         <div
@@ -496,6 +776,7 @@ export default function Onboarding() {
   const { onboarding, setOnboardingField, nextStep, prevStep, setOtpDigit, completeOnboarding } =
     useKavachStore();
   const [direction, setDirection] = useState(1);
+  const completingRef = useRef(false);
 
   const canContinue = () => {
     switch (onboarding.step) {
@@ -522,9 +803,14 @@ export default function Onboarding() {
     }
   };
 
-  const handleOtpComplete = () => {
+  const handleOtpComplete = async () => {
+    // Guard against multiple calls (rapid OTP entry can trigger this)
+    if (completingRef.current) return;
+    completingRef.current = true;
+
     setDirection(1);
-    completeOnboarding();
+    // Call ML backend BEFORE advancing to result step
+    await completeOnboarding();
     nextStep();
   };
 

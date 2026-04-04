@@ -1,65 +1,68 @@
 @import url('https://api.fontshare.com/v2/css?f[]=satoshi@400,500,700,900&display=swap');
 @import url('https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@500;700&display=swap');
+@import url('https://unpkg.com/leaflet@1.9.4/dist/leaflet.css');
 
 /* ─── Design Tokens ─── */
 :root {
   /* Backgrounds */
-  --bg-base:        #F7F5F2;
-  --bg-card:        #FFFFFF;
-  --bg-subtle:      #F0EDE8;
-  --border:         #E8E3DC;
+  --bg-base: #F7F5F2;
+  --bg-card: #FFFFFF;
+  --bg-subtle: #F0EDE8;
+  --border: #E8E3DC;
 
   /* Text */
-  --text-primary:   #1A1A1A;
+  --text-primary: #1A1A1A;
   --text-secondary: #6B6B6B;
-  --text-muted:     #9E9E9E;
+  --text-muted: #9E9E9E;
 
   /* Semantic — green (active/good) */
-  --green-primary:  #1B7F4F;
-  --green-mid:      #2EA36A;
-  --green-light:    #E8F5EE;
+  --green-primary: #1B7F4F;
+  --green-mid: #2EA36A;
+  --green-light: #E8F5EE;
 
   /* Semantic — orange (pending/watch) */
-  --orange:         #E8620A;
-  --orange-light:   #FEF0E7;
+  --orange: #E8620A;
+  --orange-light: #FEF0E7;
 
   /* Semantic — red (rejected/errors) */
-  --red:            #C0392B;
-  --red-light:      #FDECEA;
+  --red: #C0392B;
+  --red-light: #FDECEA;
 
   /* Admin dark mode */
-  --charcoal:       #1C1C1E;
-  --charcoal-card:  #2C2C2E;
+  --charcoal: #1C1C1E;
+  --charcoal-card: #2C2C2E;
   --charcoal-muted: #8E8E93;
 
   /* Shape */
-  --radius-card:    20px;
-  --radius-btn:     12px;
-  --radius-input:   10px;
-  --shadow-card:    0 2px 8px rgba(0,0,0,0.06);
-  --card-padding:   24px;
-  --max-width:      1200px;
-  --transition:     all 0.2s ease;
+  --radius-card: 20px;
+  --radius-btn: 12px;
+  --radius-input: 10px;
+  --shadow-card: 0 2px 8px rgba(0, 0, 0, 0.06);
+  --card-padding: 24px;
+  --max-width: 1200px;
+  --transition: all 0.2s ease;
 
   /* Fonts */
-  --font-display:   'Satoshi', sans-serif;
+  --font-display: 'Satoshi', sans-serif;
   --font-editorial: 'DM Serif Display', serif;
-  --font-body:      'Inter', sans-serif;
-  --font-mono:      'JetBrains Mono', monospace;
+  --font-body: 'Inter', sans-serif;
+  --font-mono: 'JetBrains Mono', monospace;
 
   /* Landing Page Tokens */
-  --landing-black:      #080808;
-  --landing-surface:    #111111;
-  --landing-surface-2:  #1A1A1A;
-  --landing-border:     #2A2A2A;
-  --landing-white:      #F5F5F0;
-  --landing-muted:      #666660;
-  --landing-green:      #1B7F4F;
-  --landing-glow:       rgba(27,127,79,0.15);
+  --landing-black: #080808;
+  --landing-surface: #111111;
+  --landing-surface-2: #1A1A1A;
+  --landing-border: #2A2A2A;
+  --landing-white: #F5F5F0;
+  --landing-muted: #666660;
+  --landing-green: #1B7F4F;
+  --landing-glow: rgba(27, 127, 79, 0.15);
 }
 
 /* ─── Reset & Base ─── */
-*, *::before, *::after {
+*,
+*::before,
+*::after {
   box-sizing: border-box;
   margin: 0;
   padding: 0;
@@ -79,7 +82,12 @@ body {
   min-height: 100vh;
 }
 
-h1, h2, h3, h4, h5, h6 {
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
   font-family: var(--font-display);
   line-height: 1.2;
   font-weight: 700;
@@ -108,7 +116,7 @@ h1, h2, h3, h4, h5, h6 {
 }
 
 .card:hover {
-  box-shadow: 0 4px 16px rgba(0,0,0,0.08);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
 }
 
 /* ─── Buttons ─── */
@@ -152,12 +160,12 @@ h1, h2, h3, h4, h5, h6 {
 .btn-ghost {
   background: transparent;
   color: #fff;
-  border: 1.5px solid rgba(255,255,255,0.25);
+  border: 1.5px solid rgba(255, 255, 255, 0.25);
 }
 
 .btn-ghost:hover {
-  border-color: rgba(255,255,255,0.5);
-  background: rgba(255,255,255,0.05);
+  border-color: rgba(255, 255, 255, 0.5);
+  background: rgba(255, 255, 255, 0.05);
 }
 
 .btn-full {
@@ -219,17 +227,17 @@ h1, h2, h3, h4, h5, h6 {
 
 /* Dark variant pills */
 .pill-green-dark {
-  background: rgba(27,127,79,0.15);
+  background: rgba(27, 127, 79, 0.15);
   color: #2EA36A;
 }
 
 .pill-amber-dark {
-  background: rgba(232,98,10,0.15);
+  background: rgba(232, 98, 10, 0.15);
   color: #F0923A;
 }
 
 .pill-red-dark {
-  background: rgba(192,57,43,0.15);
+  background: rgba(192, 57, 43, 0.15);
   color: #E74C3C;
 }
 
@@ -247,8 +255,13 @@ h1, h2, h3, h4, h5, h6 {
 }
 
 @keyframes skeleton-shimmer {
-  0%   { background-position: 200% 0; }
-  100% { background-position: -200% 0; }
+  0% {
+    background-position: 200% 0;
+  }
+
+  100% {
+    background-position: -200% 0;
+  }
 }
 
 /* ─── Progress Bar ─── */
@@ -308,8 +321,17 @@ h1, h2, h3, h4, h5, h6 {
 
 /* ─── Shield Pulse ─── */
 @keyframes shieldPulse {
-  0%, 100% { opacity: 1; transform: scale(1); }
-  50%      { opacity: 0.8; transform: scale(1.04); }
+
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+
+  50% {
+    opacity: 0.8;
+    transform: scale(1.04);
+  }
 }
 
 /* ─── OTP Input ─── */
@@ -338,9 +360,11 @@ h1, h2, h3, h4, h5, h6 {
 .dark-mode ::-webkit-scrollbar {
   width: 6px;
 }
+
 .dark-mode ::-webkit-scrollbar-track {
   background: var(--charcoal);
 }
+
 .dark-mode ::-webkit-scrollbar-thumb {
   background: #48484A;
   border-radius: 3px;
@@ -404,7 +428,7 @@ h1, h2, h3, h4, h5, h6 {
   background: var(--charcoal-card);
   border-radius: var(--radius-card);
   padding: var(--card-padding);
-  border: 1px solid rgba(255,255,255,0.06);
+  border: 1px solid rgba(255, 255, 255, 0.06);
 }
 
 /* ─── Responsive Grid ─── */
@@ -434,12 +458,24 @@ h1, h2, h3, h4, h5, h6 {
 
 /* ─── Keyframes ─── */
 @keyframes fadeInUp {
-  from { opacity: 0; transform: translateY(16px); }
-  to   { opacity: 1; transform: translateY(0); }
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .fade-in-up {
   animation: fadeInUp 0.4s ease both;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
 }
 
 /* ─── Leaflet overrides ─── */
@@ -452,7 +488,7 @@ h1, h2, h3, h4, h5, h6 {
   background: var(--charcoal-card);
   color: #fff;
   border-radius: 12px;
-  box-shadow: 0 4px 20px rgba(0,0,0,0.4);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
 }
 
 .leaflet-popup-tip {
@@ -465,10 +501,71 @@ h1, h2, h3, h4, h5, h6 {
   line-height: 1.5;
 }
 
+/* ─── Driver Pulsing Marker ─── */
+.driver-pulse-marker {
+  position: relative;
+}
+
+.driver-pulse-marker .pulse-dot {
+  width: 14px;
+  height: 14px;
+  background: var(--green-primary);
+  border-radius: 50%;
+  border: 2px solid #fff;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 2;
+}
+
+.driver-pulse-marker .pulse-ring {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background: rgba(27, 127, 79, 0.25);
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  animation: pulse-ring 2s infinite ease-out;
+  z-index: 1;
+}
+
+@keyframes pulse-ring {
+  0% {
+    transform: translate(-50%, -50%) scale(0.5);
+    opacity: 1;
+  }
+
+  100% {
+    transform: translate(-50%, -50%) scale(2);
+    opacity: 0;
+  }
+}
+
+@keyframes pulse-glow {
+
+  0%,
+  100% {
+    opacity: 1;
+  }
+
+  50% {
+    opacity: 0.4;
+  }
+}
+
 /* ─── Landing Page Marquee & Animations ─── */
 @keyframes marquee {
-  from { transform: translateX(0); }
-  to   { transform: translateX(-50%); }
+  from {
+    transform: translateX(0);
+  }
+
+  to {
+    transform: translateX(-50%);
+  }
 }
 
 .marquee-track {
@@ -480,14 +577,16 @@ h1, h2, h3, h4, h5, h6 {
 .landing-glow-btn {
   transition: all 0.3s ease;
 }
+
 .landing-glow-btn:hover {
-  box-shadow: 0 0 0 4px rgba(27,127,79,0.2), 0 0 32px rgba(27,127,79,0.15);
+  box-shadow: 0 0 0 4px rgba(27, 127, 79, 0.2), 0 0 32px rgba(27, 127, 79, 0.15);
 }
 
 .feature-block {
   transition: all 0.3s ease;
   position: relative;
 }
+
 .feature-block::before {
   content: '';
   position: absolute;
@@ -500,16 +599,20 @@ h1, h2, h3, h4, h5, h6 {
   transform-origin: top;
   transition: transform 0.3s ease;
 }
+
 .feature-block:hover {
   background: var(--landing-surface);
 }
+
 .feature-block:hover::before {
   transform: scaleY(1);
 }
+
 .feature-block-number {
   color: var(--landing-muted);
   transition: color 0.3s ease;
 }
+
 .feature-block:hover .feature-block-number {
   color: var(--landing-white);
 }
