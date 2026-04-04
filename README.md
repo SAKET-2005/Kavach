@@ -333,8 +333,9 @@ Built for Guidewire DEVTrails 2026.
 
 | Name | Role |
 |------|------|
-| [Name 1] | Frontend |
-| [Name 2] | Backend + APIs |
-| [Name 3] | AI / ML |
+| [Vansh Gajiwala] | Frontend |
+| [Pranav Pooviah] | Backend + APIs |
+| [Nehal Kashyap] | AI / ML |
+| [Saket Bedia] | AI / ML |
 
 *Kavach (कवच) — Sanskrit for shield or armour.*
