@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { getKavachScore, getPremiumPrediction, getCityConditions } from '../services/api';
 
 const mockWorker = {
   name: "Ravi Kumar",
@@ -147,7 +148,6 @@ const mockVelocityData = (() => {
     const time = new Date(now - i * 15 * 60 * 1000);
     const label = `${time.getHours().toString().padStart(2, '0')}:${time.getMinutes().toString().padStart(2, '0')}`;
     let claims = Math.floor(Math.random() * 15 + 5);
-    // Spike at index 6
     if (i === 6) claims = 287;
     if (i === 7) claims = 142;
     data.push({ time: label, claims });
@@ -162,6 +162,20 @@ const mockCities = [
   { name: "Bengaluru", lat: 12.9716, lng: 77.5946, policies: 1560, claims: 28, status: "Clear",            risk: "green" },
   { name: "Hyderabad", lat: 17.385,  lng: 78.4867, policies: 980,  claims: 15, status: "Watch Active",     risk: "amber" },
 ];
+
+// Earnings bracket → approximate weekly earnings for ML model
+const BRACKET_EARNINGS = {
+  basic: 2500,
+  standard: 4000,
+  pro: 6000,
+};
+
+// Platform name → numeric code for ML backend
+const PLATFORM_CODE = {
+  zomato: 0,
+  swiggy: 1,
+  both: 0,
+};
 
 const useKavachStore = create((set, get) => ({
   // Worker data
@@ -181,6 +195,10 @@ const useKavachStore = create((set, get) => ({
     lossRatio: 54,
   },
 
+  // Live conditions from ML backend
+  liveConditions: null,
+  conditionsLoading: false,
+
   // Onboarding state
   onboarding: {
     step: 1,
@@ -193,6 +211,11 @@ const useKavachStore = create((set, get) => ({
     otp: ["", "", "", "", "", ""],
     kavachScore: null,
     recommendedPolicy: null,
+    mlLoading: false,
+    mlError: null,
+    weatherSummary: null,
+    aqiCategory: null,
+    modelVersion: null,
   },
 
   setOnboardingField: (field, value) =>
@@ -217,18 +240,106 @@ const useKavachStore = create((set, get) => ({
       return { onboarding: { ...state.onboarding, otp } };
     }),
 
-  completeOnboarding: () =>
-    set((state) => ({
-      onboarding: {
-        ...state.onboarding,
-        kavachScore: 67,
-        recommendedPolicy: {
-          tier: "Standard Shield",
-          premium: 65,
-          coverage: 3000,
+  /**
+   * Complete onboarding — calls ML backend for REAL score + premium.
+   * No longer hardcoded!
+   */
+  completeOnboarding: async () => {
+    const state = get();
+    const { city, platform, earningsBracket } = state.onboarding;
+    const month = new Date().getMonth() + 1;
+    const weeklyEarnings = BRACKET_EARNINGS[earningsBracket] || 4000;
+    const platformCode = PLATFORM_CODE[platform] ?? 0;
+    const cityName = city || 'chennai';
+
+    // Set loading state
+    set((s) => ({
+      onboarding: { ...s.onboarding, mlLoading: true, mlError: null },
+    }));
+
+    try {
+      // Call both ML endpoints in parallel
+      const [scoreResult, premiumResult] = await Promise.all([
+        getKavachScore(cityName, platform || 'zomato', earningsBracket || 'standard', month),
+        getPremiumPrediction(cityName, month, 1, weeklyEarnings, 0, platformCode),
+      ]);
+
+      const kavachScore = scoreResult.kavach_score;
+      const premium = premiumResult.premium;
+      const tier = premiumResult.recommended_tier;
+      const coverage = premiumResult.coverage_cap;
+
+      // Map tier names for display
+      const tierNames = {
+        basic: 'Basic Shield',
+        standard: 'Standard Shield',
+        pro: 'Pro Shield',
+      };
+
+      set((s) => ({
+        onboarding: {
+          ...s.onboarding,
+          kavachScore,
+          recommendedPolicy: {
+            tier: tierNames[tier] || 'Standard Shield',
+            premium,
+            coverage,
+          },
+          weatherSummary: scoreResult.weather_summary,
+          aqiCategory: scoreResult.aqi_category,
+          modelVersion: premiumResult.breakdown?.model_version || 'ml',
+          mlLoading: false,
+          mlError: null,
         },
-      },
-    })),
+        // Also update the worker data for the dashboard
+        worker: {
+          ...s.worker,
+          city: cityName,
+          zone: s.onboarding.zone
+            ? `${s.onboarding.zone.area} · ${s.onboarding.zone.zone}`
+            : s.worker.zone,
+          platform: platform || s.worker.platform,
+          kavachScore,
+          policy: {
+            tier: tierNames[tier] || 'Standard Shield',
+            premium,
+            coverage,
+            renewsIn: 4,
+            status: 'Active',
+          },
+        },
+      }));
+    } catch (err) {
+      console.error('[ML] Score/Premium API failed:', err);
+      // Fallback — still complete onboarding but with a warning
+      set((s) => ({
+        onboarding: {
+          ...s.onboarding,
+          kavachScore: null,
+          recommendedPolicy: null,
+          mlLoading: false,
+          mlError: 'Could not reach ML service — please try again',
+        },
+      }));
+    }
+  },
+
+  /**
+   * Fetch live weather/AQI conditions for the dashboard
+   */
+  fetchLiveConditions: async (city) => {
+    set({ conditionsLoading: true });
+    try {
+      const conditions = await getCityConditions(city || 'chennai');
+      set({
+        liveConditions: conditions,
+        conditionsLoading: false,
+      });
+    } catch (err) {
+      console.error('[Live] Conditions fetch failed:', err);
+      set({ conditionsLoading: false });
+    }
+  },
 }));
 
 export default useKavachStore;
