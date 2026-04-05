@@ -489,7 +489,13 @@ Returns the fraud decision, signals, and simulated payout amount.
 
 
 ---
+### Try it for Yourself
+```
+https://kavach1-0.vercel.app/
+```
 
+
+---
 ## Team
 
 | Name | Role |
